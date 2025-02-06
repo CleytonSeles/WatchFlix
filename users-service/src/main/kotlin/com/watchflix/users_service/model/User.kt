@@ -1,4 +1,4 @@
-package model
+package com.watchflix.users_service.model
 
 import jakarta.persistence.Entity
 import jakarta.persistence.Id
