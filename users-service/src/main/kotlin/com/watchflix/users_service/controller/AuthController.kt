@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RestController
 @RestController
 class AuthController(
     private val userService: UserService,
-    private val jwtUtil: JWTUtil = JWTUtil()  // Em produção, considere injetar via Spring
+    private val jwtUtil: JWTUtil
 ) {
 
     @PostMapping("/login")
@@ -27,7 +27,7 @@ class AuthController(
                 .body(mapOf("error" to "Credenciais inválidas"))
         }
 
-        // Gera o token JWT
+        // Gera o token JWT usando a mesma instância de JWTUtil
         val token = jwtUtil.generateToken(user.username)
 
         // Retorna o token na resposta

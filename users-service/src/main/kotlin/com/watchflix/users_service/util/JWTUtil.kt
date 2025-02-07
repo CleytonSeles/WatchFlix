@@ -4,11 +4,13 @@ import io.jsonwebtoken.Claims
 import io.jsonwebtoken.Jwts
 import io.jsonwebtoken.SignatureAlgorithm
 import io.jsonwebtoken.security.Keys
+import org.springframework.stereotype.Component
 import java.security.Key
 import java.util.Date
 
+@Component
 class JWTUtil {
-    // Chave secreta para assinar o token (para fins de teste, é fixo; armazene de forma segura em produção)
+    // A chave secreta agora será gerada apenas uma vez para a instância gerenciada pelo Spring.
     private val secretKey: Key = Keys.secretKeyFor(SignatureAlgorithm.HS256)
 
     // Tempo de expiração do token (por exemplo, 10 horas)
