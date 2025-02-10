@@ -1,53 +1,50 @@
 package com.watchflix.users_service.config
 
+import com.watchflix.users_service.util.JWTAuthenticationFilter
 import com.watchflix.users_service.util.JWTUtil
-import io.jsonwebtoken.Claims
-import jakarta.servlet.FilterChain
-import jakarta.servlet.ServletException
-import jakarta.servlet.http.HttpServletRequest
-import jakarta.servlet.http.HttpServletResponse
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
-import org.springframework.security.core.context.SecurityContextHolder
-import org.springframework.security.web.authentication.WebAuthenticationDetailsSource
-import org.springframework.web.filter.OncePerRequestFilter
-import java.io.IOException
+import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.Configuration
+import org.springframework.core.annotation.Order
+import org.springframework.security.config.Customizer
+import org.springframework.security.config.annotation.web.builders.HttpSecurity
+import org.springframework.security.web.SecurityFilterChain
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter
 
-class JWTAuthenticationFilter(private val jwtUtil: JWTUtil) : OncePerRequestFilter() {
+@Configuration
+class SecurityConfig(private val jwtUtil: JWTUtil) {
 
-    @Throws(ServletException::class, IOException::class)
-    override fun doFilterInternal(
-        request: HttpServletRequest,
-        response: HttpServletResponse,
-        filterChain: FilterChain
-    ) {
-        // Adicione a condição de bypass para endpoints públicos
-        if (request.requestURI.startsWith("/actuator/") ||
-            request.requestURI == "/hello" ||
-            request.requestURI == "/login" ||
-            request.requestURI == "/users") {
-            // Esses endpoints já estão configurados para serem públicos;
-            // passe a requisição adiante sem processar o token
-            filterChain.doFilter(request, response)
-            return
-        }
+    // Cadeia de segurança para endpoints do Actuator (gerenciamento)
+    @Bean
+    @Order(1) // Prioridade mais alta
+    fun actuatorSecurityFilterChain(http: HttpSecurity): SecurityFilterChain {
+        http
+            .securityMatcher("/actuator/**") // Aplica somente para requisições que comecem com /actuator/
+            .authorizeHttpRequests { it.anyRequest().permitAll() } // Permite todas as requisições
+            .csrf { csrf -> csrf.disable() }
+        // Não adicionamos o JWTAuthenticationFilter aqui, pois queremos que esses endpoints fiquem livres.
+        return http.build()
+    }
 
-        // Caso a URI não seja um endpoint público, prossiga com a verificação do JWT.
-        val authHeader = request.getHeader("Authorization")
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            val token = authHeader.substring(7)
-            val claims: Claims? = jwtUtil.getClaims(token)
-
-            if (claims != null) {
-                val username = claims.subject
-                if (username != null && SecurityContextHolder.getContext().authentication == null) {
-                    // Cria um objeto de autenticação básico
-                    val authToken = UsernamePasswordAuthenticationToken(username, null, listOf())
-                    authToken.details = WebAuthenticationDetailsSource().buildDetails(request)
-                    SecurityContextHolder.getContext().authentication = authToken
-                }
+    // Cadeia de segurança para o restante da aplicação
+    @Bean
+    @Order(2) // Prioridade mais baixa
+    fun appSecurityFilterChain(http: HttpSecurity): SecurityFilterChain {
+        http
+            .securityMatcher("/**") // Aplica para todas as demais requisições
+            .csrf { csrf -> csrf.disable() }
+            .authorizeHttpRequests { requests ->
+                requests
+                    // Endpoints públicos da aplicação
+                    .requestMatchers("/hello", "/login", "/users").permitAll()
+                    // Qualquer outra requisição requer autenticação
+                    .anyRequest().authenticated()
             }
-        }
-        // Continue a cadeia de filtros
-        filterChain.doFilter(request, response)
+            .httpBasic(Customizer.withDefaults())
+
+        // Adiciona o filtro JWT para processar os tokens nas requisições protegidas
+        http.addFilterBefore(JWTAuthenticationFilter(jwtUtil), UsernamePasswordAuthenticationFilter::class.java)
+
+        return http.build()
     }
 }
+
